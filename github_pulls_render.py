@@ -131,14 +131,14 @@ with open('/tmp/github-pulls.json') as f_in:
             i_open = 0
             m_due = 'never'
 
-            f.write('<div class="tab-pane" id="%s">\n' % milestone.replace('.', '-'))
+            f.write('<div class="tab-pane panel panel-default" id="%s">\n' % milestone.replace('.', '-'))
             print "    %s" % (milestone)
             style = 'info'
             if milestone == 'Unassigned':
                 style = 'danger'
             repos = data[milestone].keys()
             repos.sort()
-            f.write('<table class="table panel panel-default">\n')
+            f.write('<table class="table panel-body">\n')
 
             for repo in repos:
                 i_closed += data[milestone][repo]['closed']
