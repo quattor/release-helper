@@ -39,11 +39,12 @@ HEADER = '''
       }
     </style>
     <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+    <script src="/bootstrap/js/bootstrap.min.js"></script>
   </head>
   <body>
     <div class="navbar navbar-inverse navbar-static-top" role="navigation">
       <div class="container">
-        <a class="navbar-brand"><img src="img/quattor_logo_navbar.png" width="94" height="23" alt="quattor logo"> - Release Management</a>
+        <a class="navbar-brand"><img src="img/quattor_logo_navbar.png" width="94" height="23" alt="quattor logo"> &mdash; Release Backlog</a>
         <div class="collapse navbar-collapse">
           <ul class="nav navbar-nav">
             <!--
@@ -109,7 +110,20 @@ with open('/tmp/github-pulls.json') as f_in:
 
         f.write('<div class="container">\n')
         f.write('''<button class="btn btn-default btn-sm pull-right" onclick="$('.thing-closed').toggle()">Show/Hide Closed Items</button>\n''')
-        f.write('<h1 id="backlog">Backlog</h1>\n')
+
+        f.write('<ul class="nav nav-tabs" role="tablist">\n')
+        for milestone in milestones:
+            f.write('<li><a href="#%s" role="tab" data-toggle="tab">%s</a></li>\n' % (milestone.replace('.', '-'), milestone))
+        f.write('</ul>\n')
+
+        f.write('<div class="tab-content">\n')
+        f.write('<div class="tab-pane active">\n')
+        f.write('<div class="panel panel-default">\n')
+        f.write('<div class="panel-body">\n')
+        f.write('<p><span class="glyphicon glyphicon-arrow-up"></span> Select a release to view backlog</p>\n')
+        f.write('</div>\n')
+        f.write('</div>\n')
+        f.write('</div>\n')
 
         for milestone in milestones:
             i_progress = 0
@@ -117,16 +131,14 @@ with open('/tmp/github-pulls.json') as f_in:
             i_open = 0
             m_due = 'never'
 
+            f.write('<div class="tab-pane" id="%s">\n' % milestone.replace('.', '-'))
             print "    %s" % (milestone)
             style = 'info'
             if milestone == 'Unassigned':
                 style = 'danger'
-            f.write('<div class="panel panel-%s">\n' % style)
-            f.write('<div class="panel-heading"><strong>%s</strong>' % milestone)
-            f.write('</div>\n')
             repos = data[milestone].keys()
             repos.sort()
-            f.write('<table class="panel-body table">\n')
+            f.write('<table class="table panel panel-default">\n')
 
             for repo in repos:
                 i_closed += data[milestone][repo]['closed']
@@ -181,6 +193,8 @@ with open('/tmp/github-pulls.json') as f_in:
 
             f.write('</div>\n')
 
+        f.write('</div>\n')
+        f.write('</div>\n')
         f.write('</div>\n')
 
         f.write(FOOTER)
