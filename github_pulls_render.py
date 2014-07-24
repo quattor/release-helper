@@ -164,8 +164,6 @@ with open('/tmp/github-pulls.json') as f_in:
                     f.write('</ul>\n')
                     f.write('</td>')
                     f.write('</tr>\n')
-                #else:
-                #    f.write('<span class="text-muted" title="No things!">∅</span>\n')
             f.write('</table>\n')
 
             if milestone != 'Unassigned':
@@ -184,40 +182,5 @@ with open('/tmp/github-pulls.json') as f_in:
             f.write('</div>\n')
 
         f.write('</div>\n')
-
-        #f.write('<hr>\n')
-
-        #f.write('<div class="container">\n')
-        #f.write('<h1 id="detail">Pull Request Detail</h1>\n')
-
-        #for milestone, repos in data.iteritems():
-            #for repo, pulls in repos.iteritems():
-                #if pulls:
-                    #f.write('<h3>%s</h3>\n' % (repo))
-
-                    #for p in pulls:
-                        #f.write('<div class="panel panel-default">\n')
-
-                        #f.write('''<div class="panel-heading"><div class="row">
-                                     #<div class="col-md-1"><b>%(number)s</b></div>
-                                     #<div class="col-md-1">@%(user)s</div>
-                                     #<div class="col-md-7"><a href="%(url)s">%(title)s</a></div>
-                                     #<div class="col-md-3 text-right"><span class="text-muted">Updated: %(updated)s</span></div>
-                                   #</div></div>\n''' % p)
-
-                        #if p['comments']:
-                            #f.write('<div class="panel-body">\n')
-                            #for c in p['comments']:
-                                #name, text = c
-                                #text = escape(text)
-                                #f.write('''<div class="row">
-                                             #<div class="col-md-1">@%s</div>
-                                             #<div class="col-md-11"><blockquote>%s</blockquote></div>
-                                           #</div>\n''' % (name.encode('utf-8'), text.encode('utf-8')))
-                            #f.write('</div>\n')
-
-                        #f.write('</div>\n')
-
-        #f.write('</div>\n')
 
         f.write(FOOTER)
