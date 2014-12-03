@@ -7,6 +7,7 @@ from sys import stdout
 from collections import namedtuple
 from itertools import chain
 from ssl import SSLError
+import socket
 
 from quattor_release_config import *
 
@@ -37,6 +38,7 @@ for repo_name in REPOS:
 
                 data[milestone.title][repo.name]['open'] += int(milestone.open_issues)
                 data[milestone.title][repo.name]['closed'] += int(milestone.closed_issues)
+
                 if milestone.due_on:
                     data[milestone.title][repo.name]['due'] = milestone.due_on.isoformat()
 
@@ -45,7 +47,7 @@ for repo_name in REPOS:
 
             break
 
-        except SSLError:
+        except (SSLError, socket.error) as e:
             stdout.write('R')
             retries -= 1
 
@@ -53,8 +55,10 @@ for repo_name in REPOS:
         retries = 3
         while retries:
             try:
-                #things = repo.get_issues(state='all')
-                things = repo.get_issues()
+                # We care about all things that are assigned to a milestone, or things that are open but not assigned to a milestone
+                things_all_milestones = repo.get_issues(state='all', milestone='*')
+                things_unassigned = repo.get_issues(state='open', milestone='none')
+                things = chain(things_all_milestones, things_unassigned)
 
                 for t in things:
                     stdout.write('▒')
@@ -62,24 +66,29 @@ for repo_name in REPOS:
                     milestone_name = 'Unassigned'
                     if t.milestone:
                         milestone_name = t.milestone.title
-        
+
                     if milestone_name in data: # Skip any issues belonging to milestones that have been closed already
                         if repo.name in data[milestone_name]:
-                            icon = 'issue-opened'
-                            if t.pull_request:
-                                icon = 'git-pull-request'
-        
-                            data[milestone_name][repo.name]['things'].append({
+                            this_thing = {
                                 'number' : t.number,
                                 'url' : t.html_url,
                                 'title' : t.title,
-                                'icon': icon,
                                 'user' : t.user.login,
+                                'assignee' : t.assignee.login if t.assignee != None else None,
                                 'created' :  t.created_at.isoformat(),
                                 'updated' :  t.updated_at.isoformat(),
                                 'state' : t.state,
                                 'comment_count' : t.comments,
-                            })
+                            }
+
+                            this_thing['type'] = 'issue'
+                            if t.pull_request:
+                                this_thing['type'] = 'pull-request'
+
+                            if t.closed_at:
+                                this_thing['closed'] = t.closed_at.isoformat()
+
+                            data[milestone_name][repo.name]['things'].append(this_thing)
                         else:
                             print "\nWARNING: Dropped thing %d (%s) from repo %s (missing milestone?)" % (t.number, t.title ,repo.name)
                 break
