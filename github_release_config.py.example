@@ -1,0 +1,10 @@
+REPOS = [
+    'list-of',
+    'github',
+    'repositories',
+]
+
+USERNAME = 'example-user'
+OAUTH_TOKEN = '0123456789abcdef0123456789abcdef01234567'
+ORGANISATION = 'example-org'
+
