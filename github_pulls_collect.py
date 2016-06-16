@@ -7,17 +7,23 @@ from sys import stdout
 from collections import namedtuple
 from itertools import chain
 from ssl import SSLError
+from datetime import datetime, timedelta
 import socket
+from re import compile, IGNORECASE
 
-from quattor_release_config import *
+RE_DEPENDS = compile(r'((?:depends|based) on|requires)\s+(?P<repository>[\w/-]*)#(?P<number>\d+)', IGNORECASE)
+RE_FIXES = compile(r'(close[sd]?|fix(?:e[sd])?|resolve[sd]?)', IGNORECASE)
+
+from github_release_config import *
 
 g = Github(USERNAME, OAUTH_TOKEN)
 g = g.get_user(ORGANISATION)
 
 data = {}
+relationships = []
 
 MockMilestone = namedtuple('Milestone', ['title', 'open_issues', 'closed_issues', 'due_on'])
-unassigned = MockMilestone(title='Unassigned', open_issues=0, closed_issues=0, due_on=None)
+backlog = MockMilestone(title='Backlog', open_issues=0, closed_issues=0, due_on=None)
 
 # Collect data
 for repo_name in REPOS:
@@ -27,9 +33,9 @@ for repo_name in REPOS:
     retries = 3
     while retries:
         try:
-            milestones = repo.get_milestones()
+            milestones = repo.get_milestones(state='open')
 
-            for milestone in chain(milestones, [unassigned]):
+            for milestone in chain(milestones, [backlog]):
                 if milestone.title not in data:
                     data[milestone.title] = {}
 
@@ -55,15 +61,15 @@ for repo_name in REPOS:
         retries = 3
         while retries:
             try:
-                # We care about all things that are assigned to a milestone, or things that are open but not assigned to a milestone
+                # We care about all things that are assigned to a milestone, or things from the last 60 days that are not assigned to a milestone
                 things_all_milestones = repo.get_issues(state='all', milestone='*')
-                things_unassigned = repo.get_issues(state='open', milestone='none')
-                things = chain(things_all_milestones, things_unassigned)
+                things_backlog = repo.get_issues(milestone='none', since=datetime.now() - timedelta(days=60))
+                things = chain(things_all_milestones, things_backlog)
 
                 for t in things:
                     stdout.write('▒')
                     stdout.flush()
-                    milestone_name = 'Unassigned'
+                    milestone_name = 'Backlog'
                     if t.milestone:
                         milestone_name = t.milestone.title
 
@@ -79,16 +85,28 @@ for repo_name in REPOS:
                                 'updated' :  t.updated_at.isoformat(),
                                 'state' : t.state,
                                 'comment_count' : t.comments,
+                                'labels' : [],
                             }
 
                             this_thing['type'] = 'issue'
                             if t.pull_request:
                                 this_thing['type'] = 'pull-request'
+                                this_thing['labels'] = [l.name for l in t.labels]
+                                pr = repo.get_pull(t.number)
+
+                            this_thing['labels'] = [l.name for l in t.labels]
 
                             if t.closed_at:
                                 this_thing['closed'] = t.closed_at.isoformat()
 
                             data[milestone_name][repo.name]['things'].append(this_thing)
+
+                            dependencies = RE_DEPENDS.search(t.body)
+                            if dependencies:
+                                dep_repo = dependencies.group('repository')
+                                if not dep_repo:
+                                    dep_repo = repo.name
+                                relationships.append(('%s/%s' % (repo.name, t.number), 'requires', '%s/%s' % (repo.name, dependencies.group('number'))))
                         else:
                             print "\nWARNING: Dropped thing %d (%s) from repo %s (missing milestone?)" % (t.number, t.title ,repo.name)
                 break
@@ -104,3 +122,6 @@ for repo_name in REPOS:
 
 with open('/tmp/github-pulls.json', 'w') as f:
     dump(data, f, indent=4)
+
+with open('/tmp/github-pulls-relationships.json', 'w') as f:
+    dump(relationships, f, indent=4)
