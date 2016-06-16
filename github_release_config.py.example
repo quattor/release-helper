@@ -8,3 +8,6 @@ USERNAME = 'example-user'
 OAUTH_TOKEN = '0123456789abcdef0123456789abcdef01234567'
 ORGANISATION = 'example-org'
 
+STANDARD_LABELS = {
+    'bug' : 'ef2929',
+}
