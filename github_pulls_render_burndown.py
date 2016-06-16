@@ -4,6 +4,7 @@
 from json import load, dump
 from cgi import escape
 from datetime import datetime
+import sys
 
 # Render data
 with open('/tmp/github-pulls.json') as f_in:
@@ -11,9 +12,9 @@ with open('/tmp/github-pulls.json') as f_in:
 
     # Hacky numerical sort for our release numbering scheme
     milestones = data.keys()
-    milestones = [[int(i) for i in m.split('.')] for m in milestones if m != 'Unassigned']
+    milestones = [[int(i) for i in m.split('.')] for m in milestones if m != 'Backlog']
     milestones.sort()
-    milestones = [u'.'.join(map(str,m)) for m in milestones if m != 'Unassigned']
+    milestones = [u'.'.join(map(str,m)) for m in milestones if m != 'Backlog']
 
     print('# Quattor Backlog')
 
@@ -24,13 +25,15 @@ with open('/tmp/github-pulls.json') as f_in:
         burned = []
 
         for repo in repos:
+            sys.stdout.write('R')
             things = data[milestone][repo]['things']
             if things:
                 for t in things:
+                    sys.stdout.write('.')
                     to_burn += 1
                     if 'closed' in t:
                         burned.append(t['closed'])
-
+        print
         burned.sort()
 
         bdata = {

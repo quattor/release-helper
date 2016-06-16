@@ -31,9 +31,12 @@ HEADER = '''<!DOCTYPE html>
         color: #6cc644;
       }
       .text-github-closed {
+        color: #BD2C00;
+      }
+      .text-github-merged {
         color: #6E5494;
       }
-      .thing-closed {
+      .thing-closed, .thing-merged {
         display: none;
         opacity: 0.75;
       }
@@ -47,21 +50,26 @@ HEADER = '''<!DOCTYPE html>
     <div class="navbar navbar-inverse navbar-static-top" role="navigation">
       <div class="container">
         <a class="navbar-brand"><img src="/img/quattor_logo_navbar.png" width="94" height="23" alt="quattor logo"> &mdash; Releasing</a>
-        <ul class="nav navbar-nav">
-          <li class="active"><a href="/release/">Backlog</a></li>
-          <li><a href="/release/burndown.html">Burndown</a></li>
-        </ul>
       </div>
     </div>
 '''
 
 FOOTER = '''
+  <script src="http://code.highcharts.com/highcharts.js"></script>
+  <script src="http://code.highcharts.com/modules/exporting.js"></script>
+  <script src="regression.js"></script>
+  <script src="burndown.js"></script>
   <script type="text/javascript">
     $(function() {
       $('.reldate').each(function(index) {
         $(this).text(moment.tz($(this).text(), "YYYY-MM-DDTHH:mm:ss", "UTC").fromNow());
       });
     });
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+      release = String(e.target).split("#",2)[1].replace("-", "."); //Ugh.
+      if (release != "Backlog") burndown(release);
+      else $('#burndown-container').html('');
+    })
   </script>
   </body>
 </html>
@@ -74,6 +82,14 @@ from json import load
 from cgi import escape
 from datetime import datetime
 
+previous_releases = [
+#    '14.8',
+#    '14.10',
+#    '15.2',
+#    '15.4',
+#    '15.8',
+#    '15.12',
+]
 
 # Render data
 with open('/tmp/github-pulls.json') as f_in:
@@ -81,9 +97,9 @@ with open('/tmp/github-pulls.json') as f_in:
 
     # Hacky numerical sort for our release numerbing scheme
     milestones = data.keys()
-    milestones = [[int(i) for i in m.split('.')] for m in milestones if m != 'Unassigned']
+    milestones = [[int(i) for i in m.split('.')] for m in milestones if m != 'Backlog']
     milestones.sort()
-    milestones = [u'.'.join(map(str,m)) for m in milestones] + ['Unassigned']
+    milestones = previous_releases + [u'.'.join(map(str,m)) for m in milestones] + ['Backlog']
     print milestones
 
 
@@ -91,11 +107,15 @@ with open('/tmp/github-pulls.json') as f_in:
         f.write(HEADER)
 
         f.write('<div class="container">\n')
-        f.write('''<button class="btn btn-default btn-sm pull-right" onclick="$('.thing-closed').toggle('slow')">Show/Hide Closed Items</button>\n''')
+        f.write('''<button class="btn btn-default btn-sm pull-right" onclick="$('.thing-closed').toggle('slow'); $('.thing-merged').toggle('slow');">Toggle Closed &amp; Merged Items</button>\n''')
 
         f.write('<ul class="nav nav-tabs" role="tablist">\n')
         for milestone in milestones:
-            f.write('<li><a href="#%s" role="tab" data-toggle="tab">%s</a></li>\n' % (milestone.replace('.', '-'), milestone))
+            tab_class = ''
+            if milestone in previous_releases:
+                tab_class = 'thing-closed'
+            tab_class = ' class="%s"' % tab_class
+            f.write('<li><a href="#%s" role="tab" data-toggle="tab"%s>%s</a></li>\n' % (milestone.replace('.', '-'), tab_class, milestone))
         f.write('</ul>\n')
 
         f.write('<div class="tab-content">\n')
@@ -107,6 +127,8 @@ with open('/tmp/github-pulls.json') as f_in:
         f.write('</div>\n')
         f.write('</div>\n')
 
+        f.write('<div id="burndown-container" style="min-width: 800px; margin: 0 auto;"></div>\n');
+
         for milestone in milestones:
             i_progress = 0
             i_closed = 0
@@ -115,10 +137,14 @@ with open('/tmp/github-pulls.json') as f_in:
 
             print "    %s" % (milestone)
             style = 'default'
-            if milestone == 'Unassigned':
+            if milestone == 'Backlog':
                 style = 'danger'
-            repos = data[milestone].keys()
+
+            repos = []
+            if milestone in data:
+                repos = data[milestone].keys()
             repos.sort()
+
             f.write('<div class="tab-pane panel panel-%s" id="%s">\n' % (style, milestone.replace('.', '-')))
             f.write('<table class="table panel-body">\n')
 
@@ -140,14 +166,14 @@ with open('/tmp/github-pulls.json') as f_in:
                     f.write('<ul class="list-unstyled">\n')
                     things = sorted(things, key=lambda k: k['title'], reverse=True)
                     for t in things:
-                        if not (milestone == 'Unassigned' and t['state'] != 'open'):
+#                        if not (milestone == 'Backlog' and t['state'] == 'closed'):
                             t['icon'] = 'issue-opened'
 
                             if t['type'] == 'issue' and t['state'] == 'closed':
                                 t['icon'] = 'issue-closed'
-                            elif t['type'] == 'pull-request' and t['state'] == 'open':
+                            elif t['type'] == 'pull-request' and t['state'] != 'merged':
                                 t['icon'] = 'git-pull-request'
-                            elif t['type'] == 'pull-request' and t['state'] == 'closed':
+                            elif t['type'] == 'pull-request' and t['state'] == 'merged':
                                 t['icon'] = 'git-merge'
 
                             f.write('<li class="thing-%(state)s">' % t)
@@ -169,9 +195,8 @@ with open('/tmp/github-pulls.json') as f_in:
                     f.write('</tr>\n')
             f.write('</table>\n')
 
-            if milestone != 'Unassigned':
-                if i_closed > 0:
-                    i_progress = i_closed * 100 / (i_open + i_closed) # Do this as integer maths
+            if i_closed > 0 or i_open > 0:
+                i_progress = i_closed * 100 / (i_open + i_closed) # Do this as integer maths
 
                 f.write(
                  '''<div class="panel-footer">
